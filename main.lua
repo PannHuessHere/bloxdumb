@@ -1,16 +1,21 @@
--- simple_draggable_gui_esp_detect.lua
--- Draggable GUI + Close + Player ESP (name / health / auto-detect stamina)
+-- GARA ESP with Advanced Stamina System
+-- Draggable GUI + Close + Player ESP (name / health / stamina)
+-- Stamina system based on: https://github.com/ahmadtatatata57-coder/roblox-penetrar/blob/main/gara_stamina.lua
 -- Usage: paste & run. Unload with _G.SIMPLE_GUI_DRAG_UNLOAD()
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
+local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
-if not LocalPlayer then warn("No LocalPlayer") return end
+
+if not LocalPlayer or not LocalPlayer.Character then
+    warn("GARA ESP: LocalPlayer tidak ditemukan atau belum spawn")
+    return
+end
+
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 5)
-local parent = PlayerGui or game:GetService("CoreGui")
+local parent = PlayerGui or CoreGui
 
 -- cleanup previous
 pcall(function()
@@ -37,211 +42,98 @@ end
 local ESP_ENABLED = false
 local ESP_DISTANCE = 200
 local espFolders = {} -- player -> folder
-local selectedStaminaSource = nil -- {type="Attribute"| "Instance", ref=instance, path=string}
 
 local function safeDestroy(obj)
     if obj and obj.Parent then pcall(function() obj:Destroy() end) end
 end
 
--- UTIL: collect numeric candidates from common places
-local function collectCandidates()
-    local list = {}
-    local function push(info)
-        table.insert(list, info)
-    end
-    local function tryCollectFromParent(root, prefix)
-        if not root then return end
-        for _,inst in ipairs(root:GetDescendants()) do
-            if inst:IsA("NumberValue") or inst:IsA("IntValue") or inst:IsA("DoubleConstrainedValue") then
-                push({kind="Instance", inst=inst, name = prefix..inst:GetFullName(), get = function() return inst.Value end})
-            end
-            -- attributes on Instances (numeric)
-            if inst and inst:GetAttributes then
-                local atts = inst:GetAttributes()
-                for k,v in pairs(atts) do
-                    if type(v) == "number" then
-                        push({kind="Attribute", inst=inst, attr = k, name = prefix..inst:GetFullName().."@"..k, get = function() return inst:GetAttribute(k) end})
-                    end
-                end
-            end
+-- [ADVANCED STAMINA SYSTEM] Based on gara_stamina.lua reference
+local StaminaManager = {
+    MaxStamina = 100,
+    
+    -- Get stamina value from character (supports Value objects and Attributes)
+    getStamina = function(self, character)
+        if not character then return 0 end
+        
+        -- Try as Value object (NumberValue/IntValue)
+        local stamina = character:FindFirstChild("Posture")
+                     or character:FindFirstChild("Stamina")
+                     or character:FindFirstChild("PostureValue")
+                     or character:FindFirstChild("Energy")
+        
+        if stamina and (stamina:IsA("NumberValue") or stamina:IsA("IntValue")) then
+            return stamina.Value
         end
-    end
-    -- character + humanoid
-    if LocalPlayer.Character then
-        tryCollectFromParent(LocalPlayer.Character, "MyChar:")
-        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then tryCollectFromParent(hum, "MyHum:") end
-    end
-    -- Player top-level (leaderstats etc)
-    tryCollectFromParent(LocalPlayer, "Player:")
-    -- PlayerGui and PlayerScripts
-    if PlayerGui then tryCollectFromParent(PlayerGui, "PlayerGui:") end
-    local ps = LocalPlayer:FindFirstChild("PlayerScripts")
-    if ps then tryCollectFromParent(ps, "PlayerScripts:") end
-    -- ReplicatedStorage (client-accessible shared)
-    pcall(function() tryCollectFromParent(ReplicatedStorage, "ReplicatedStorage:") end)
-    -- also search other players characters/humanoids for instance-type candidates (not attributes)
-    for _,pl in ipairs(Players:GetPlayers()) do
-        if pl.Character then
-            tryCollectFromParent(pl.Character, pl.Name..":")
-            local hum = pl.Character:FindFirstChildOfClass("Humanoid")
-            if hum then tryCollectFromParent(hum, pl.Name.."Hum:") end
+        
+        -- Try as Attribute
+        local postureAttr = character:GetAttribute("Posture")
+        local staminaAttr = character:GetAttribute("Stamina")
+        
+        if postureAttr ~= nil then
+            return tonumber(postureAttr) or 0
         end
-    end
-    -- dedupe by name
-    local seen = {}
-    local out = {}
-    for _,c in ipairs(list) do
-        if c.name and not seen[c.name] then
-            seen[c.name] = true
-            table.insert(out, c)
+        
+        if staminaAttr ~= nil then
+            return tonumber(staminaAttr) or 0
         end
-    end
-    return out
-end
-
--- Auto-detect algorithm:
--- sample each candidate N times over duration T, compute range and variance,
--- compute correlation with local humanoid WalkSpeed if available.
-local function autodetectStamina(samples, duration, onProgress)
-    samples = samples or 28
-    duration = duration or 4
-    local candidates = collectCandidates()
-    if #candidates == 0 then return nil, "no_candidates" end
-    local dt = duration / samples
-    local data = {}
-    for i,c in ipairs(candidates) do
-        data[i] = {c=c, vals={}}
-    end
-    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    local speeds = {}
-    -- sampling loop
-    for s=1,samples do
-        local sp = hum and hum.WalkSpeed or nil
-        table.insert(speeds, sp)
-        for i,entry in ipairs(data) do
-            local ok, v = pcall(entry.c.get)
-            if not ok then v = nil end
-            table.insert(entry.vals, v)
-        end
-        if onProgress then onProgress(s / samples) end
-        task.wait(dt)
-    end
-    -- scoring
-    local results = {}
-    local function mean(t)
-        local c = 0 local sum = 0
-        for _,v in ipairs(t) do if type(v) == "number" then sum = sum + v; c = c + 1 end end
-        if c == 0 then return nil end
-        return sum / c
-    end
-    local function variance(t, m)
-        m = m or mean(t)
-        if not m then return nil end
-        local c = 0; local s = 0
-        for _,v in ipairs(t) do
-            if type(v) == "number" then
-                s = s + (v - m)*(v - m)
-                c = c + 1
-            end
-        end
-        if c <= 1 then return 0 end
-        return s / (c - 1)
-    end
-    local function range(t)
-        local amin, amax = nil, nil
-        for _,v in ipairs(t) do if type(v) == "number" then if amin == nil or v < amin then amin = v end if amax == nil or v > amax then amax = v end end end
-        if amin == nil then return nil end
-        return amax - amin
-    end
-    local function corrcoef(a,b)
-        if not a or not b then return 0 end
-        local ma = mean(a); local mb = mean(b)
-        if not ma or not mb then return 0 end
-        local num = 0; local da = 0; local db = 0; local n=0
-        for i=1,math.min(#a,#b) do
-            local ai=a[i]; local bi=b[i]
-            if type(ai)=="number" and type(bi)=="number" then
-                num = num + (ai-ma)*(bi-mb)
-                da = da + (ai-ma)*(ai-ma)
-                db = db + (bi-mb)*(bi-mb)
-                n = n + 1
-            end
-        end
-        if n==0 then return 0 end
-        local denom = math.sqrt(da*db)
-        if denom == 0 then return 0 end
-        return num/denom
-    end
-
-    for i,entry in ipairs(data) do
-        local vals = entry.vals
-        local m = mean(vals)
-        local v = variance(vals, m) or 0
-        local r = range(vals) or 0
-        local score = r + math.sqrt(v) -- simple combine
-        local speedCorr = 0
+        
+        -- Check Humanoid for attributes
+        local hum = character:FindFirstChildOfClass("Humanoid")
         if hum then
-            -- compute correlation with speed: if negative (stamina drops while speed increases) that's good
-            local sc = corrcoef(vals, speeds)
-            speedCorr = sc
-            -- adjust score: prefer negative correlation (stamina decreases when speed up)
-            score = score + ( -sc ) * 10
+            local humPosture = hum:GetAttribute("Posture")
+            local humStamina = hum:GetAttribute("Stamina")
+            
+            if humPosture ~= nil then
+                return tonumber(humPosture) or 0
+            end
+            
+            if humStamina ~= nil then
+                return tonumber(humStamina) or 0
+            end
         end
-        results[i] = {candidate = entry.c, mean = m, var = v, range = r, score = score, corr = speedCorr}
+        
+        return 0
+    end,
+    
+    -- Set stamina value to character
+    setStamina = function(self, character, value)
+        if not character then return false end
+        
+        value = math.clamp(value, 0, self.MaxStamina)
+        
+        -- Try as Value object
+        local stamina = character:FindFirstChild("Posture")
+                     or character:FindFirstChild("Stamina")
+                     or character:FindFirstChild("PostureValue")
+        
+        if stamina and (stamina:IsA("NumberValue") or stamina:IsA("IntValue")) then
+            stamina.Value = value
+            return true
+        end
+        
+        -- Try as Attribute
+        local postureAttr = character:GetAttribute("Posture")
+        local staminaAttr = character:GetAttribute("Stamina")
+        
+        if postureAttr ~= nil then
+            character:SetAttribute("Posture", value)
+            return true
+        end
+        
+        if staminaAttr ~= nil then
+            character:SetAttribute("Stamina", value)
+            return true
+        end
+        
+        return false
     end
-    table.sort(results, function(a,b) return a.score > b.score end)
-    -- pick best if reasonable: require range > 0.5 or var > small threshold OR |corr| > 0.25
-    local best = results[1]
-    if best and ((best.range and best.range > 0.5) or (best.var and best.var > 0.1) or (best.corr and math.abs(best.corr) > 0.25)) then
-        return best.candidate, results
-    end
-    return nil, results
-end
+}
 
--- Stamina reading wrapper (using selectedStaminaSource if present)
+-- Legacy function wrapper for compatibility
 local function readStaminaValueForPlayer(pl)
     if not pl or not pl.Character then return nil end
-    if selectedStaminaSource then
-        if selectedStaminaSource.kind == "Attribute" and selectedStaminaSource.inst and selectedStaminaSource.attr then
-            local inst = selectedStaminaSource.inst
-            if inst and inst.Parent then
-                return inst:GetAttribute(selectedStaminaSource.attr)
-            end
-        elseif selectedStaminaSource.kind == "Instance" and selectedStaminaSource.inst then
-            local inst = selectedStaminaSource.inst
-            if inst and inst.Parent and inst.Value ~= nil then
-                return inst.Value
-            end
-        elseif selectedStaminaSource.kind == "PlayerScoped" and selectedStaminaSource.name then
-            -- e.g. search under target player's character/humanoid for name
-            local ch = pl.Character
-            if ch then
-                local target = ch:FindFirstChild(selectedStaminaSource.name) or (ch:FindFirstChildOfClass("Humanoid") and ch:FindFirstChildOfClass("Humanoid"):FindFirstChild(selectedStaminaSource.name))
-                if target and target.Value ~= nil then return target.Value end
-            end
-        end
-    end
-    -- fallback: try reading direct common names in target player's character/humanoid
-    local candidates = {"Stamina","stamina","Energy","energy","Sprint","sprint","Stam","stam"}
-    local ch = pl.Character
-    local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-    if hum then
-        local a = hum:GetAttribute("Stamina") or hum:GetAttribute("stamina")
-        if type(a) == "number" then return a end
-    end
-    if ch then
-        for _,name in ipairs(candidates) do
-            local v = ch:FindFirstChild(name) or (hum and hum:FindFirstChild(name))
-            if v and (v:IsA("NumberValue") or v:IsA("IntValue")) then
-                return v.Value
-            end
-        end
-    end
-    -- Player top-level (leaderstats)
-    local v = pl:FindFirstChild("Stamina") or pl:FindFirstChild("stamina")
-    if v and (v:IsA("NumberValue") or v:IsA("IntValue")) then return v.Value end
-    return nil
+    local value = StaminaManager:getStamina(pl.Character)
+    return value > 0 and value or nil
 end
 
 -- ESP create/remove (same as before), now uses readStaminaValueForPlayer to show stamina
@@ -383,7 +275,7 @@ local function makeRow(parent, y, labelText)
     return row, label
 end
 
-local row1 = makeRow(controls, 0, "Player ESP")
+local row1, row1Label = makeRow(controls, 0, "Player ESP")
 local toggleESP = Instance.new("TextButton", row1)
 toggleESP.Size = UDim2.new(0, 60, 0, 22)
 toggleESP.Position = UDim2.new(1, -70, 0, 3)
@@ -393,16 +285,6 @@ toggleESP.TextSize = 14
 toggleESP.BackgroundColor3 = Color3.fromRGB(60,60,60)
 toggleESP.TextColor3 = Color3.fromRGB(255,255,255)
 Instance.new("UICorner", toggleESP).CornerRadius = UDim.new(0,6)
-
-local detectBtn = Instance.new("TextButton", row1)
-detectBtn.Size = UDim2.new(0, 90, 0, 22)
-detectBtn.Position = UDim2.new(1, -150, 0, 3)
-detectBtn.Text = "Detect Stamina"
-detectBtn.Font = Enum.Font.SourceSansBold
-detectBtn.TextSize = 13
-detectBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-detectBtn.TextColor3 = Color3.fromRGB(255,255,255)
-Instance.new("UICorner", detectBtn).CornerRadius = UDim.new(0,6)
 
 local row2 = makeRow(controls, 34, "Distance")
 local distLabel = Instance.new("TextLabel", row2)
@@ -444,11 +326,6 @@ status.TextSize = 13
 status.TextColor3 = Color3.fromRGB(200,200,200)
 status.TextXAlignment = Enum.TextXAlignment.Left
 status.TextWrapped = true
-
-local candList = Instance.new("Frame", Main)
-candList.Size = UDim2.new(1, -24, 0, 40)
-candList.Position = UDim2.new(0, 12, 0, 208)
-candList.BackgroundTransparency = 1
 
 -- Draggable logic (capture overlay)
 do
@@ -553,56 +430,7 @@ reg(incBtn.MouseButton1Click:Connect(function()
     status.Text = (ESP_ENABLED and "ESP: ON\n" or "ESP: OFF\n").. "Distance: "..tostring(ESP_DISTANCE)
 end))
 
--- detect button: runs autodetect, shows progress, then selects best candidate or lists choices
-local detecting = false
-reg(detectBtn.MouseButton1Click:Connect(function()
-    if detecting then return end
-    detecting = true
-    detectBtn.Text = "Detecting..."
-    status.Text = "Please sprint/perform action to change stamina for ~4s. If you cannot, cancel and pick manual."
-    -- run autodetect; it will sample over time and return candidate
-    task.spawn(function()
-        local candidate, results = autodetectStamina(28, 4, function(progress)
-            detectBtn.Text = string.format("Detecting (%.0f%%)", progress*100)
-        end)
-        detecting = false
-        detectBtn.Text = "Detect Stamina"
-        if type(candidate) == "table" then
-            -- select it
-            selectedStaminaSource = candidate
-            status.Text = "Auto-detected stamina source: "..(candidate.name or "unknown")
-        else
-            -- show top results to choose manually
-            status.Text = "Auto-detect did not find confident source; showing candidates (top 6). Click one to select."
-            -- clear candidate list UI
-            for _,c in ipairs(candList:GetChildren()) do c:Destroy() end
-            local resultsTable = results or {}
-            local max = math.min(6, #resultsTable)
-            for i=1,max do
-                local r = resultsTable[i]
-                local b = Instance.new("TextButton", candList)
-                b.Size = UDim2.new(0, math.floor((Main.AbsoluteSize.X - 40) / max) - 4, 1, 0)
-                b.Position = UDim2.new((i-1)/max, 0, 0, 0)
-                b.Text = (r.candidate and r.candidate.name) or ("cand"..i)
-                b.Font = Enum.Font.SourceSans
-                b.TextSize = 12
-                b.BackgroundColor3 = Color3.fromRGB(60,60,60)
-                b.TextColor3 = Color3.fromRGB(255,255,255)
-                Instance.new("UICorner", b).CornerRadius = UDim.new(0,4)
-                b.MouseButton1Click:Connect(function()
-                    if r and r.candidate then
-                        selectedStaminaSource = r.candidate
-                        status.Text = "Selected stamina source: "..(r.candidate.name or "unknown")
-                        -- cleanup candidate list
-                        for _,c in ipairs(candList:GetChildren()) do c:Destroy() end
-                    end
-                end)
-            end
-        end
-    end)
-end))
-
--- player/character events to create ESP when appropriate
+-- Player/character events to create ESP when appropriate
 reg(Players.PlayerAdded:Connect(function(pl)
     reg(pl.CharacterAdded:Connect(function()
         if ESP_ENABLED then task.wait(0.2); if pl.Character and pl.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
@@ -615,7 +443,7 @@ end))
 
 reg(Players.PlayerRemoving:Connect(function(pl) removeESPForPlayer(pl) end))
 
--- heartbeat: culling & label updates (stamina read from selectedStaminaSource or fallback)
+-- Heartbeat: culling & label updates (stamina read directly without auto-detection)
 reg(RunService.Heartbeat:Connect(function()
     if not ESP_ENABLED then return end
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
@@ -669,4 +497,4 @@ _G.SIMPLE_GUI_DRAG_UNLOAD = function()
     print("[simple_draggable_gui] Unloaded (ESP cleaned)")
 end
 
-print("[simple_draggable_gui] Loaded with improved stamina detection. Click Detect Stamina and perform sprint action while it samples (4s).")
+print("[simple_draggable_gui] Loaded. ESP will display stamina if found in character/humanoid.")

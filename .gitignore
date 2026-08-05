@@ -1,0 +1,27 @@
+```
+# Lua build artifacts
+*.luac
+?.lua
+
+# Dependencies
+?.rockspec
+?.rocks
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+```
