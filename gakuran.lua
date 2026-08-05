@@ -157,8 +157,8 @@ SG.Parent = CoreGui
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 240, 0, 520)
-MainFrame.Position = UDim2.new(0.02, 0, 0.25, 0)
+MainFrame.Size = UDim2.new(0, 420, 0, 520) -- diperlebar untuk dua kolom
+MainFrame.Position = UDim2.new(0.02, 0, 0.12, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 25, 45)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -191,8 +191,8 @@ TC.CornerRadius = UDim.new(0, 10)
 TC.Parent = Title
 
 local HideText = Instance.new("TextLabel")
-HideText.Size = UDim2.new(0, 100, 1, 0)
-HideText.Position = UDim2.new(1, -110, 0, 0)
+HideText.Size = UDim2.new(0, 120, 1, 0)
+HideText.Position = UDim2.new(1, -130, 0, 0)
 HideText.Text = "[ RightShift ]"
 HideText.TextColor3 = Color3.fromRGB(150, 180, 230)
 HideText.TextSize = 11
@@ -201,86 +201,66 @@ HideText.TextXAlignment = Enum.TextXAlignment.Right
 HideText.BackgroundTransparency = 1
 HideText.Parent = Title
 
-local B1 = Instance.new("TextButton")
-B1.Size = UDim2.new(0, 210, 0, 35)
-B1.Position = UDim2.new(0, 15, 0, 50)
-B1.Text = "ESP + Bars Radar: OFF"
-B1.TextColor3 = Color3.fromRGB(255, 255, 255)
-B1.BackgroundColor3 = Color3.fromRGB(205, 45, 45)
-B1.Font = Enum.Font.SourceSansBold
-B1.TextSize = 14
-B1.Parent = MainFrame
+-- Container kiri: tombol utama (menggunakan UIListLayout untuk rapih)
+local LeftContainer = Instance.new("Frame")
+LeftContainer.Name = "LeftContainer"
+LeftContainer.Size = UDim2.new(0, 230, 1, -60)
+LeftContainer.Position = UDim2.new(0, 10, 0, 50)
+LeftContainer.BackgroundTransparency = 1
+LeftContainer.Parent = MainFrame
 
-local BC1 = Instance.new("UICorner")
-BC1.CornerRadius = UDim.new(0, 6)
-BC1.Parent = B1
+local LeftLayout = Instance.new("UIListLayout")
+LeftLayout.Padding = UDim.new(0, 8)
+LeftLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+LeftLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+LeftLayout.Parent = LeftContainer
 
-local B2 = Instance.new("TextButton")
-B2.Size = UDim2.new(0, 210, 0, 35)
-B2.Position = UDim2.new(0, 15, 0, 95)
-B2.Text = "Same Server Rejoin: OFF"
-B2.TextColor3 = Color3.fromRGB(255, 255, 255)
-B2.BackgroundColor3 = Color3.fromRGB(205, 45, 45)
-B2.Font = Enum.Font.SourceSansBold
-B2.TextSize = 14
-B2.Parent = MainFrame
+-- Container kanan: stamina & cooldown
+local RightContainer = Instance.new("Frame")
+RightContainer.Name = "RightContainer"
+RightContainer.Size = UDim2.new(0, 150, 1, -60)
+RightContainer.Position = UDim2.new(0, 260, 0, 50)
+RightContainer.BackgroundTransparency = 1
+RightContainer.Parent = MainFrame
 
-local BC2 = Instance.new("UICorner")
-BC2.CornerRadius = UDim.new(0, 6)
-BC2.Parent = B2
+local RightLayout = Instance.new("UIListLayout")
+RightLayout.Padding = UDim.new(0, 8)
+RightLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+RightLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+RightLayout.Parent = RightContainer
 
-local B4 = Instance.new("TextButton")
-B4.Size = UDim2.new(0, 210, 0, 35)
-B4.Position = UDim2.new(0, 15, 0, 140)
-B4.Text = "M1 Damage Assist: OFF"
-B4.TextColor3 = Color3.fromRGB(255, 255, 255)
-B4.BackgroundColor3 = Color3.fromRGB(205, 45, 45)
-B4.Font = Enum.Font.SourceSansBold
-B4.TextSize = 14
-B4.Parent = MainFrame
+-- Tombol standar di kiri (ukuran menyesuaikan container)
+local function makeMainButton(text, color)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 36)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.BackgroundColor3 = color
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 14
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+    return btn
+end
 
-local BC4 = Instance.new("UICorner")
-BC4.CornerRadius = UDim.new(0, 6)
-BC4.Parent = B4
+local B1 = makeMainButton("ESP + Bars Radar: OFF", Color3.fromRGB(205, 45, 45))
+B1.Parent = LeftContainer
 
--- [STAMINA BUTTON] Infinite Stamina
-local B9 = Instance.new("TextButton")
-B9.Size = UDim2.new(0, 100, 0, 35)
-B9.Position = UDim2.new(0, 15, 0, 185)
-B9.Text = "∞ Stamina: OFF"
-B9.TextColor3 = Color3.fromRGB(255, 255, 255)
-B9.BackgroundColor3 = Color3.fromRGB(205, 45, 45)
-B9.Font = Enum.Font.SourceSansBold
-B9.TextSize = 12
-B9.Parent = MainFrame
+local B2 = makeMainButton("Same Server Rejoin: OFF", Color3.fromRGB(205, 45, 45))
+B2.Parent = LeftContainer
 
-local BC9 = Instance.new("UICorner")
-BC9.CornerRadius = UDim.new(0, 6)
-BC9.Parent = B9
+local B4 = makeMainButton("M1 Damage Assist: OFF", Color3.fromRGB(205, 45, 45))
+B4.Parent = LeftContainer
 
--- [STAMINA BUTTON] Stamina Regen
-local B10 = Instance.new("TextButton")
-B10.Size = UDim2.new(0, 100, 0, 35)
-B10.Position = UDim2.new(0, 125, 0, 185)
-B10.Text = "↑ Regen: OFF"
-B10.TextColor3 = Color3.fromRGB(255, 255, 255)
-B10.BackgroundColor3 = Color3.fromRGB(205, 45, 45)
-B10.Font = Enum.Font.SourceSansBold
-B10.TextSize = 12
-B10.Parent = MainFrame
-
-local BC10 = Instance.new("UICorner")
-BC10.CornerRadius = UDim.new(0, 6)
-BC10.Parent = B10
-
+-- DropContainer untuk daftar player tetap di kiri, dibawah tombol utama
 DropContainer = Instance.new("ScrollingFrame")
-DropContainer.Size = UDim2.new(0, 210, 0, 80)
-DropContainer.Position = UDim2.new(0, 15, 0, 230)
+DropContainer.Size = UDim2.new(1, -10, 0, 120)
 DropContainer.BackgroundColor3 = Color3.fromRGB(25, 35, 60)
 DropContainer.BorderSizePixel = 0
 DropContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
 DropContainer.ScrollBarThickness = 4
-DropContainer.Parent = MainFrame
+DropContainer.Parent = LeftContainer
 
 DropListLayout = Instance.new("UIListLayout")
 DropListLayout.Padding = UDim.new(0, 4)
@@ -290,78 +270,71 @@ local DropCorner = Instance.new("UICorner")
 DropCorner.CornerRadius = UDim.new(0, 6)
 DropCorner.Parent = DropContainer
 
-local B5 = Instance.new("TextButton")
-B5.Size = UDim2.new(0, 210, 0, 35)
-B5.Position = UDim2.new(0, 15, 0, 320)
-B5.Text = "⚡ Teleport Behind Target"
-B5.TextColor3 = Color3.fromRGB(255, 255, 255)
-B5.BackgroundColor3 = Color3.fromRGB(25, 100, 210)
-B5.Font = Enum.Font.SourceSansBold
-B5.TextSize = 14
-B5.Parent = MainFrame
+local B5 = makeMainButton("⚡ Teleport Behind Target", Color3.fromRGB(25, 100, 210))
+B5.Parent = LeftContainer
 
-local BC5 = Instance.new("UICorner")
-BC5.CornerRadius = UDim.new(0, 6)
-BC5.Parent = B5
+local B3 = makeMainButton("⛔ Unload Script", Color3.fromRGB(45, 50, 60))
+B3.Parent = LeftContainer
 
--- [COOLDOWN DISPLAY] Heavy Attack Cooldown Button
-local B6 = Instance.new("TextButton")
-B6.Size = UDim2.new(0, 100, 0, 35)
-B6.Position = UDim2.new(0, 15, 0, 365)
-B6.Text = "Heavy Atk: RDY"
-B6.TextColor3 = Color3.fromRGB(255, 255, 255)
-B6.BackgroundColor3 = Color3.fromRGB(220, 120, 45)
-B6.Font = Enum.Font.SourceSansBold
-B6.TextSize = 12
-B6.Parent = MainFrame
+-- Stamina buttons di kanan (stacked)
+local B9 = Instance.new("TextButton")
+B9.Size = UDim2.new(1, 0, 0, 36)
+B9.Text = "∞ Stamina: OFF"
+B9.TextColor3 = Color3.fromRGB(255, 255, 255)
+B9.BackgroundColor3 = Color3.fromRGB(205, 45, 45)
+B9.Font = Enum.Font.SourceSansBold
+B9.TextSize = 12
+local BC9 = Instance.new("UICorner")
+BC9.CornerRadius = UDim.new(0, 6)
+BC9.Parent = B9
+B9.Parent = RightContainer
 
-local BC6 = Instance.new("UICorner")
-BC6.CornerRadius = UDim.new(0, 6)
-BC6.Parent = B6
+local B10 = Instance.new("TextButton")
+B10.Size = UDim2.new(1, 0, 0, 36)
+B10.Text = "↑ Regen: OFF"
+B10.TextColor3 = Color3.fromRGB(255, 255, 255)
+B10.BackgroundColor3 = Color3.fromRGB(205, 45, 45)
+B10.Font = Enum.Font.SourceSansBold
+B10.TextSize = 12
+local BC10 = Instance.new("UICorner")
+BC10.CornerRadius = UDim.new(0, 6)
+BC10.Parent = B10
+B10.Parent = RightContainer
 
--- [COOLDOWN DISPLAY] Block Cooldown Button
-local B7 = Instance.new("TextButton")
-B7.Size = UDim2.new(0, 100, 0, 35)
-B7.Position = UDim2.new(0, 125, 0, 365)
-B7.Text = "Block: RDY"
-B7.TextColor3 = Color3.fromRGB(255, 255, 255)
-B7.BackgroundColor3 = Color3.fromRGB(100, 150, 220)
-B7.Font = Enum.Font.SourceSansBold
-B7.TextSize = 12
-B7.Parent = MainFrame
+-- Cooldowns: group dalam frame horizontal
+local CoolFrame = Instance.new("Frame")
+CoolFrame.Size = UDim2.new(1, 0, 0, 40)
+CoolFrame.BackgroundTransparency = 1
+CoolFrame.Parent = RightContainer
 
-local BC7 = Instance.new("UICorner")
-BC7.CornerRadius = UDim.new(0, 6)
-BC7.Parent = B7
+local CoolLayout = Instance.new("UIListLayout")
+CoolLayout.FillDirection = Enum.FillDirection.Horizontal
+CoolLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+CoolLayout.Padding = UDim.new(0, 6)
+CoolLayout.Parent = CoolFrame
 
--- [COOLDOWN DISPLAY] Evasion Cooldown Button
-local B8 = Instance.new("TextButton")
-B8.Size = UDim2.new(0, 100, 0, 35)
-B8.Position = UDim2.new(0, 235, 0, 365)
-B8.Text = "Evade: RDY"
-B8.TextColor3 = Color3.fromRGB(255, 255, 255)
-B8.BackgroundColor3 = Color3.fromRGB(150, 220, 150)
-B8.Font = Enum.Font.SourceSansBold
-B8.TextSize = 12
-B8.Parent = MainFrame
+local function makeSmallButton(text, color)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 100, 1, 0)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.BackgroundColor3 = color
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 12
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+    return btn
+end
 
-local BC8 = Instance.new("UICorner")
-BC8.CornerRadius = UDim.new(0, 6)
-BC8.Parent = B8
+local B6 = makeSmallButton("Heavy Atk: RDY", Color3.fromRGB(220, 120, 45))
+B6.Parent = CoolFrame
 
-local B3 = Instance.new("TextButton")
-B3.Size = UDim2.new(0, 210, 0, 35)
-B3.Position = UDim2.new(0, 15, 0, 470)
-B3.Text = "⛔ Unload Script"
-B3.TextColor3 = Color3.fromRGB(255, 255, 255)
-B3.BackgroundColor3 = Color3.fromRGB(45, 50, 60)
-B3.Font = Enum.Font.SourceSansBold
-B3.TextSize = 14
-B3.Parent = MainFrame
+local B7 = makeSmallButton("Block: RDY", Color3.fromRGB(100, 150, 220))
+B7.Parent = CoolFrame
 
-local BC3 = Instance.new("UICorner")
-BC3.CornerRadius = UDim.new(0, 6)
-BC3.Parent = B3
+local B8 = makeSmallButton("Evade: RDY", Color3.fromRGB(150, 220, 150))
+B8.Parent = CoolFrame
 
 -- [FEATURE #8] Hotkey System
 local Hotkeys = {
